@@ -133,3 +133,23 @@ if uploaded_files:
             mime="application/zip",
             use_container_width=True
         )
+        
+# --- 4. フッター（署名・免責） ---
+st.markdown("---") # 区切り線
+st.markdown(
+    """
+    <div style="text-align: center; font-size: 12px; color: #888888; line-height: 1.6;">
+        <p style="margin-bottom: 5px;">Created by <strong>ごんざれす</strong></p>
+        <p>
+            <a href="https://x.com/jyukaiin" target="_blank" style="color: #1DA1F2; text-decoration: none; font-weight: bold;">
+                𝕏 @jyukaiin
+            </a>
+        </p>
+        <p style="margin-top: 15px; font-size: 10px;">
+            ※免責事項：アップロードされたファイルはサーバーに保存されず、メモリ上で一時的に処理されます。<br>
+            本ツールの利用によって生じた損害等について、製作者は一切の責任を負いません。
+        </p>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
