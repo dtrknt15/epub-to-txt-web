@@ -50,7 +50,7 @@ def convert_epub_logic(uploaded_file, options):
         st.error(f"エラーが発生しました: {e}")
         return None, None
 
-# --- 3. UIレイアウト (ここを大幅に変更) ---
+# --- 3. UIレイアウト ---
 st.title("📚 EPUBをTXTにするやつONLINE")
 st.write("スマホでも簡単に変換できるやつ。")
 
@@ -74,14 +74,17 @@ st.markdown("""
 uploaded_files = st.file_uploader("EPUBファイルを選択（複数可）", type="epub", accept_multiple_files=True)
 
 # 2. 変換ボタンをその下に配置
-# ここでボタンが押されたかどうかの状態を変数(run_pressed)に保存します
 run_pressed = False
 if uploaded_files:
     run_pressed = st.button("変換を実行する", type="primary", use_container_width=True)
 
+# ▼▼▼ 変更点：ここに結果表示用の「空のコンテナ」を作っておく ▼▼▼
+# これで、コードの実行順序は「後」でも、表示場所は「ここ」になります
+result_container = st.container()
+# ▲▲▲ 変更点ここまで ▲▲▲
+
 # 3. 設定エリアをさらに下に配置
 st.markdown("---") # 見やすくするための区切り線
-# 画面下部なので、デフォルトは閉じておき(expanded=False)、必要な人だけ開く仕様にしました
 with st.expander("⚙️ オプション設定（変更する場合はここをタップ）", expanded=True):
     
     col1, col2 = st.columns(2)
@@ -101,30 +104,30 @@ with st.expander("⚙️ オプション設定（変更する場合はここを�
     st.divider()
 
     # 折り返し設定
-    # 最初はOFF（value=False）に設定
     use_wrap = st.toggle("指定文字数で改行", value=False)
     
-    # toggleがOFFのときは disabled=True になるようにします
     var_width = st.slider(
         "文字数", 
-        min_value=10, 
+        min_value=1, 
         max_value=100, 
-        value=40, 
-        disabled=not use_wrap  # ここがポイント！
+        value=15, 
+        disabled=not use_wrap
     )
     
-    # 内部処理用の値：OFFのときは 0 に上書きする
     if not use_wrap:
         var_width = 0
 
-# --- 4. 実行処理ブロック (配置はUIの後だが、ボタン判定で動く) ---
+# --- 4. 実行処理ブロック ---
 if run_pressed and uploaded_files:
-    # ここに来た時点で「設定エリア」の変数は読み込まれているので安全に使用できます
     
     zip_buffer = io.BytesIO()
     
     with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
-        progress_bar = st.progress(0)
+        
+        # プログレスバーだけは一番上（またはボタン直下）に出したいので
+        # コンテナの中にプログレスバーを表示させます
+        with result_container:
+            progress_bar = st.progress(0)
         
         for i, file in enumerate(uploaded_files):
             options = {
@@ -149,16 +152,20 @@ if run_pressed and uploaded_files:
                         zip_file.writestr(f"{base_name}_images/{img_name}", img_data)
             
             progress_bar.progress((i + 1) / len(uploaded_files))
-        
-    st.success("変換完了！下のボタンから保存してください。")
     
-    st.download_button(
-        label="📦 まとめてダウンロード (ZIP)",
-        data=zip_buffer.getvalue(),
-        file_name="converted_files.zip",
-        mime="application/zip",
-        use_container_width=True
-    )
+    # ▼▼▼ 変更点：結果表示をさっき作ったコンテナの中に書き込む ▼▼▼
+    with result_container:
+        st.success("変換完了！下のボタンから保存してください。")
+        
+        st.download_button(
+            label="📦 まとめてダウンロード (ZIP)",
+            data=zip_buffer.getvalue(),
+            file_name="converted_files.zip",
+            mime="application/zip",
+            use_container_width=True
+        )
+        st.markdown("---") # 結果とオプションの間の区切り線
+    # ▲▲▲ 変更点ここまで ▲▲▲
 
 # --- 5. フッター（署名・免責） ---
 st.markdown("---")
@@ -179,10 +186,3 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
-
-
-
-
-
-
-
