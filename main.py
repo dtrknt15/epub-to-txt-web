@@ -71,7 +71,7 @@ st.markdown("""
 # ▲▲▲ 追加ここまで ▲▲▲
 
 # 1. ファイルアップロードを一番上に配置
-uploaded_files = st.file_uploader("EPUBファイルを選択（複数可）", type="epub", accept_multiple_files=True)
+uploaded_files = st.file_uploader("EPUBファイルを選択(最大10個/複数時はzip出力)", type="epub", accept_multiple_files=True)
 
 # 2. 変換ボタンをその下に配置
 run_pressed = False
@@ -85,20 +85,20 @@ result_container = st.container()
 
 # 3. 設定エリアをさらに下に配置
 st.markdown("---") # 見やすくするための区切り線
-with st.expander("⚙️ オプション設定（変更する場合はここをタップ）", expanded=True):
+with st.expander("⚙️ オプション設定(デフォルトはおすすめ設定)", expanded=True):
     
     col1, col2 = st.columns(2)
     
     with col1:
         var_ruby = st.checkbox("ルビを削除する", value=True)
-        var_images = st.checkbox("画像を抽出する", value=False)
-        var_newline = st.checkbox("元の改行を削除")
+        var_images = st.checkbox("画像を抽出する(zip出力)", value=False)
+        var_newline = st.checkbox("改行を削除")
         
     with col2:
         var_blank_mode = st.radio(
-            "空行の扱い",
+            "空行(連続改行)の扱い",
             ["そのまま", "1行に統合", "完全削除"],
-            index=0
+            index=3
         )
     
     st.divider()
@@ -208,4 +208,5 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
 
