@@ -88,11 +88,12 @@ st.write(" ")
 
 # 1. ファイルアップロード
 uploaded_files = st.file_uploader(
-    "EPUBファイルを選択", 
+    "EPUBファイルを選択(複数可)", 
+    help="複数変換時、画像抽出時はzipで出力されます。"
+        )
     type="epub", 
     accept_multiple_files=True
 )
-st.write("※複数変換、画像抽出はzipで出力されます")
 
 # 2. 変換ボタン
 run_pressed = False
@@ -194,5 +195,6 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
 
 
