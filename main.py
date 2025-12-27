@@ -120,52 +120,74 @@ with st.expander("⚙️ オプション設定（変更する場合はここを�
 # --- 4. 実行処理ブロック ---
 if run_pressed and uploaded_files:
     
+    # 判定フラグ：1冊のみ 且つ 画像保存オフ かどうか
+    is_single_txt = len(uploaded_files) == 1 and not var_ruby # var_imagesがFalseの時
+    # ※元のコードの変数名に合わせて var_images を参照してください
+    is_single_txt = len(uploaded_files) == 1 and not var_images
+
     zip_buffer = io.BytesIO()
+    single_txt_data = ""
+    single_filename = ""
     
-    with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
-        
-        # プログレスバーだけは一番上（またはボタン直下）に出したいので
-        # コンテナの中にプログレスバーを表示させます
-        with result_container:
-            progress_bar = st.progress(0)
-        
-        for i, file in enumerate(uploaded_files):
-            options = {
-                'remove_ruby': var_ruby,
-                'remove_newlines': var_newline,
-                'blank_mode': var_blank_mode,
-                'save_images': var_images,
-                'wrap_width': var_width
-            }
-            
-            if options['blank_mode'] == "詰める":
-                options['blank_mode'] = "完全に詰める"
-            
-            txt, imgs = convert_epub_logic(file, options)
-            
-            if txt:
-                base_name = file.name.replace(".epub", "")
-                zip_file.writestr(f"{base_name}.txt", txt)
-                
-                if imgs:
-                    for img_name, img_data in imgs:
-                        zip_file.writestr(f"{base_name}_images/{img_name}", img_data)
-            
-            progress_bar.progress((i + 1) / len(uploaded_files))
-    
-    # ▼▼▼ 変更点：結果表示をさっき作ったコンテナの中に書き込む ▼▼▼
     with result_container:
-        st.success("変換完了！下のボタンから保存してください。")
+        progress_bar = st.progress(0)
         
-        st.download_button(
-            label="📦 まとめてダウンロード (ZIP)",
-            data=zip_buffer.getvalue(),
-            file_name="converted_files.zip",
-            mime="application/zip",
-            use_container_width=True
-        )
-        st.markdown("---") # 結果とオプションの間の区切り線
-    # ▲▲▲ 変更点ここまで ▲▲▲
+        # ZIPの準備（単体TXTじゃない場合、または念のためのバックアップとして）
+        with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
+            
+            for i, file in enumerate(uploaded_files):
+                options = {
+                    'remove_ruby': var_ruby,
+                    'remove_newlines': var_newline,
+                    'blank_mode': var_blank_mode,
+                    'save_images': var_images,
+                    'wrap_width': var_width
+                }
+                
+                if options['blank_mode'] == "詰める":
+                    options['blank_mode'] = "完全に詰める"
+                
+                txt, imgs = convert_epub_logic(file, options)
+                
+                if txt:
+                    base_name = file.name.replace(".epub", "")
+                    
+                    # 単体TXTモード用のデータを保持
+                    if is_single_txt:
+                        single_txt_data = txt
+                        single_filename = f"{base_name}.txt"
+                    
+                    # 常にZIPも作っておく（後でボタンを出し分ける）
+                    zip_file.writestr(f"{base_name}.txt", txt)
+                    if imgs:
+                        for img_name, img_data in imgs:
+                            zip_file.writestr(f"{base_name}_images/{img_name}", img_data)
+                
+                progress_bar.progress((i + 1) / len(uploaded_files))
+    
+    # --- 結果表示コンテナへの書き出し ---
+    with result_container:
+        st.success("変換完了！")
+        
+        if is_single_txt:
+            # 1冊・画像なしなら TXT 直接ダウンロード
+            st.download_button(
+                label="📄 テキスト形式で保存 (.txt)",
+                data=single_txt_data,
+                file_name=single_filename,
+                mime="text/plain",
+                use_container_width=True
+            )
+        else:
+            # 複数 or 画像ありなら ZIP ダウンロード
+            st.download_button(
+                label="📦 まとめてダウンロード (ZIP)",
+                data=zip_buffer.getvalue(),
+                file_name="converted_files.zip",
+                mime="application/zip",
+                use_container_width=True
+            )
+        st.markdown("---")
 
 # --- 5. フッター（署名・免責） ---
 st.markdown("---")
@@ -186,3 +208,4 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
