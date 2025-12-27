@@ -52,6 +52,7 @@ def convert_epub_logic(uploaded_file, options):
 
 # --- 3. UIレイアウト (ここを大幅に変更) ---
 st.title("📚 EPUBをTXTにするやつONLINE")
+st.write("スマホでも簡単に変換できるやつ。")
 
 # ▼▼▼ 追加：余白を詰めるためのCSS ▼▼▼
 st.markdown("""
@@ -68,8 +69,6 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 # ▲▲▲ 追加ここまで ▲▲▲
-
-st.write("スマホでも簡単に変換できるやつ。")
 
 # 1. ファイルアップロードを一番上に配置
 uploaded_files = st.file_uploader("EPUBファイルを選択（複数可）", type="epub", accept_multiple_files=True)
@@ -174,5 +173,6 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
 
 
