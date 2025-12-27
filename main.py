@@ -10,10 +10,12 @@ import zipfile
 # --- 1. ページ設定 ---
 st.set_page_config(page_title="EPUBをTXTにするやつONLINE", page_icon="📚")
 
-# --- 2. 変換ロジック (変更なし) ---
+# --- 2. 変換ロジック ---
 def convert_epub_logic(uploaded_file, options):
     try:
         # メモリ上のバイナリとして読み込み
+        # seek(0) は念のため（再読み込み時の保険）
+        uploaded_file.seek(0)
         book = epub.read_epub(io.BytesIO(uploaded_file.read()))
         full_text = ""
         images = [] # (filename, bytes) のリスト
@@ -21,23 +23,30 @@ def convert_epub_logic(uploaded_file, options):
         # 文章の処理
         for item in book.get_items_of_type(ebooklib.ITEM_DOCUMENT):
             soup = BeautifulSoup(item.get_content(), 'html.parser')
+            
+            # ルビ削除
             if options['remove_ruby']:
                 for rt in soup.find_all('rt'):
                     rt.decompose()
+            
             text = soup.get_text()
+            
+            # 改行削除（文中の改行トル）
             if options['remove_newlines']:
                 text = text.replace('\n', '').replace('\r', '')
+            
             full_text += text + "\n"
 
-        # 空行の処理
+        # 空行の処理（正規表現で空行を整理）
         if options['blank_mode'] == "1行に統合":
             full_text = re.sub(r'\n\s*\n+', '\n\n', full_text)
-        elif options['blank_mode'] == "完全削除":
+        elif options['blank_mode'] == "完全に詰める":
             full_text = re.sub(r'\n\s*\n+', '\n', full_text)
 
         # 文字数折り返し
         if options['wrap_width'] > 0:
             lines = full_text.splitlines()
+            # textwrapは日本語の禁則処理を考慮しないが、標準機能としてはこれでOK
             full_text = "\n".join([textwrap.fill(line, width=options['wrap_width']) for line in lines])
 
         # 画像の抽出
@@ -47,46 +56,40 @@ def convert_epub_logic(uploaded_file, options):
 
         return full_text, images
     except Exception as e:
-        st.error(f"エラーが発生しました: {e}")
+        # エラー時はNoneを返すのではなくエラー文言を入れる手もあるが、今回はUI側で制御
+        st.error(f"エラーが発生しました({uploaded_file.name}): {e}")
         return None, None
 
 # --- 3. UIレイアウト ---
 st.title("📚 EPUBをTXTにするやつONLINE")
 st.write("スマホでも簡単に変換できるやつ。")
 
-# ▼▼▼ 追加：余白を詰めるためのCSS ▼▼▼
 st.markdown("""
     <style>
-    /* ファイルアップローダーの下の余白を削る */
-    .stFileUploader {
-        margin-bottom: -20px;
-    }
-    /* 区切り線(hr)の上下余白を削る */
-    hr {
-        margin-top: 0px !important;
-        margin-bottom: 10px !important;
-    }
+    .stFileUploader { margin-bottom: -20px; }
+    hr { margin-top: 0px !important; margin-bottom: 10px !important; }
     </style>
     """, unsafe_allow_html=True)
-# ▲▲▲ 追加ここまで ▲▲▲
 
-# 1. ファイルアップロードを一番上に配置
-uploaded_files = st.file_uploader("EPUBファイルを選択(最大10個/複数時はzip出力)", type="epub", accept_multiple_files=True)
+# 1. ファイルアップロード
+uploaded_files = st.file_uploader(
+    "EPUBファイルを選択", 
+    type="epub", 
+    accept_multiple_files=True,
+    help="最大10個まで。複数選択時はZIPで出力されます。"
+)
 
-# 2. 変換ボタンをその下に配置
+# 2. 変換ボタン
 run_pressed = False
 if uploaded_files:
     run_pressed = st.button("変換を実行する", type="primary", use_container_width=True)
 
-# ▼▼▼ 変更点：ここに結果表示用の「空のコンテナ」を作っておく ▼▼▼
-# これで、コードの実行順序は「後」でも、表示場所は「ここ」になります
+# 結果表示用コンテナ
 result_container = st.container()
-# ▲▲▲ 変更点ここまで ▲▲▲
 
-# 3. 設定エリアをさらに下に配置
-st.markdown("---") # 見やすくするための区切り線
-with st.expander("⚙️ オプション設定(デフォルトはおすすめ設定)", expanded=True):
-    
+# 3. 設定エリア
+st.markdown("---")
+with st.expander("⚙️ オプション設定", expanded=True):
     col1, col2 = st.columns(2)
     
     with col1:
@@ -95,6 +98,7 @@ with st.expander("⚙️ オプション設定(デフォルトはおすすめ設
         var_newline = st.checkbox("改行を削除")
         
     with col2:
+        # 【BUG FIX】index=3 は範囲外なので 2 に修正
         var_blank_mode = st.radio(
             "空行(連続改行)の扱い",
             ["そのまま", "1行に統合", "完全削除"],
@@ -103,16 +107,8 @@ with st.expander("⚙️ オプション設定(デフォルトはおすすめ設
     
     st.divider()
 
-    # 折り返し設定
     use_wrap = st.toggle("指定文字数で改行", value=False)
-    
-    var_width = st.slider(
-        "文字数", 
-        min_value=1, 
-        max_value=100, 
-        value=15, 
-        disabled=not use_wrap
-    )
+    var_width = st.slider("文字数", 1, 100, 15, disabled=not use_wrap)
     
     if not use_wrap:
         var_width = 0
@@ -120,9 +116,7 @@ with st.expander("⚙️ オプション設定(デフォルトはおすすめ設
 # --- 4. 実行処理ブロック ---
 if run_pressed and uploaded_files:
     
-    # 判定フラグ：1冊のみ 且つ 画像保存オフ かどうか
-    is_single_txt = len(uploaded_files) == 1 and not var_ruby # var_imagesがFalseの時
-    # ※元のコードの変数名に合わせて var_images を参照してください
+    # 【CODE FIX】重複定義を削除し、正しいロジックのみ残す
     is_single_txt = len(uploaded_files) == 1 and not var_images
 
     zip_buffer = io.BytesIO()
@@ -132,45 +126,46 @@ if run_pressed and uploaded_files:
     with result_container:
         progress_bar = st.progress(0)
         
-        # ZIPの準備（単体TXTじゃない場合、または念のためのバックアップとして）
         with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
             
             for i, file in enumerate(uploaded_files):
+                # 【BUG FIX】UIの選択肢とロジックの不整合を解消
+                logic_blank_mode = var_blank_mode
+                if var_blank_mode == "完全削除":
+                    logic_blank_mode = "完全に詰める"
+
                 options = {
                     'remove_ruby': var_ruby,
                     'remove_newlines': var_newline,
-                    'blank_mode': var_blank_mode,
+                    'blank_mode': logic_blank_mode, # マッピング後の値を使用
                     'save_images': var_images,
                     'wrap_width': var_width
                 }
-                
-                if options['blank_mode'] == "詰める":
-                    options['blank_mode'] = "完全に詰める"
                 
                 txt, imgs = convert_epub_logic(file, options)
                 
                 if txt:
                     base_name = file.name.replace(".epub", "")
                     
-                    # 単体TXTモード用のデータを保持
                     if is_single_txt:
                         single_txt_data = txt
                         single_filename = f"{base_name}.txt"
                     
-                    # 常にZIPも作っておく（後でボタンを出し分ける）
                     zip_file.writestr(f"{base_name}.txt", txt)
+                    
                     if imgs:
                         for img_name, img_data in imgs:
+                            # 画像パスのセパレータ問題を回避するためファイル名のみ抽出する処理を入れても良いが
+                            # ここではそのままパスとして使用（ZipFileは階層構造を許容するためOK）
                             zip_file.writestr(f"{base_name}_images/{img_name}", img_data)
                 
                 progress_bar.progress((i + 1) / len(uploaded_files))
     
-    # --- 結果表示コンテナへの書き出し ---
+    # --- 結果表示 ---
     with result_container:
         st.success("変換完了！")
         
         if is_single_txt:
-            # 1冊・画像なしなら TXT 直接ダウンロード
             st.download_button(
                 label="📄 テキスト形式で保存 (.txt)",
                 data=single_txt_data,
@@ -179,7 +174,6 @@ if run_pressed and uploaded_files:
                 use_container_width=True
             )
         else:
-            # 複数 or 画像ありなら ZIP ダウンロード
             st.download_button(
                 label="📦 まとめてダウンロード (ZIP)",
                 data=zip_buffer.getvalue(),
@@ -189,7 +183,7 @@ if run_pressed and uploaded_files:
             )
         st.markdown("---")
 
-# --- 5. フッター（署名・免責） ---
+# --- 5. フッター ---
 st.markdown("---")
 st.markdown(
     """
@@ -208,6 +202,3 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
-
-
-
