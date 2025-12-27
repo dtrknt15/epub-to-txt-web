@@ -84,15 +84,15 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 st.title("📚 EPUBをTXTにするやつ")
+st.write("※複数処理や画像抽出はzipで出力します")
 st.write(" ")
-
 # 1. ファイルアップロード
 uploaded_files = st.file_uploader(
     "EPUBファイルを選択(複数可)", 
-        )
     type="epub", 
     accept_multiple_files=True
 )
+
 
 # 2. 変換ボタン
 run_pressed = False
@@ -194,6 +194,7 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
 
 
 
