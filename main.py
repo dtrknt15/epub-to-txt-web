@@ -103,12 +103,20 @@ with st.expander("⚙️ オプション設定（変更する場合はここを�
     st.divider()
 
     # 折り返し設定
-    # value=True を追加することで、最初からONになります
-    use_wrap = st.toggle("指定文字数で改行", value=True)
+    # 最初はOFF（value=False）に設定
+    use_wrap = st.toggle("指定文字数で改行", value=False)
     
-    if use_wrap:
-        var_width = st.slider("文字数", min_value=1, max_value=100, value=20)
-    else:
+    # toggleがOFFのときは disabled=True になるようにします
+    var_width = st.slider(
+        "文字数", 
+        min_value=10, 
+        max_value=100, 
+        value=40, 
+        disabled=not use_wrap  # ここがポイント！
+    )
+    
+    # 内部処理用の値：OFFのときは 0 に上書きする
+    if not use_wrap:
         var_width = 0
 
 # --- 4. 実行処理ブロック (配置はUIの後だが、ボタン判定で動く) ---
@@ -173,6 +181,7 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
 
 
 
