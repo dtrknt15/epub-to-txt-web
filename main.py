@@ -32,7 +32,7 @@ def convert_epub_logic(uploaded_file, options):
         # 空行の処理
         if options['blank_mode'] == "1行に統合":
             full_text = re.sub(r'\n\s*\n+', '\n\n', full_text)
-        elif options['blank_mode'] == "完全に詰める":
+        elif options['blank_mode'] == "完全削除":
             full_text = re.sub(r'\n\s*\n+', '\n', full_text)
 
         # 文字数折り返し
@@ -98,7 +98,7 @@ with st.expander("⚙️ オプション設定(デフォルトはおすすめ設
         var_blank_mode = st.radio(
             "空行(連続改行)の扱い",
             ["そのまま", "1行に統合", "完全削除"],
-            index=3
+            index=2
         )
     
     st.divider()
@@ -208,5 +208,6 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
 
 
