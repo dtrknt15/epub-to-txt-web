@@ -87,11 +87,10 @@ with st.expander("⚙️ オプション設定（変更する場合はここを�
     col1, col2 = st.columns(2)
     
     with col1:
-        st.caption("基本設定")
         var_ruby = st.checkbox("ルビを削除する", value=True)
-        var_newline = st.checkbox("元の改行を削除")
         var_images = st.checkbox("画像を抽出する", value=False)
-
+        var_newline = st.checkbox("元の改行を削除")
+        
     with col2:
         st.caption("空行設定")
         var_blank_mode = st.radio(
@@ -181,6 +180,7 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
 
 
 
