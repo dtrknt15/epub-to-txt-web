@@ -27,23 +27,26 @@ def convert_epub_logic(uploaded_file, options):
                     rt.decompose()
             
             text = soup.get_text()
-            
-            # 改行削除（文中の改行）
-            if options['remove_newlines']:
-                text = text.replace('\n', '').replace('\r', '')
-            
             full_text += text + "\n"
 
-        # 空行の処理
-        if options['blank_mode'] == "1行に統合":
-            full_text = re.sub(r'\n\s*\n+', '\n\n', full_text)
-        elif options['blank_mode'] == "完全に詰める":
+        # --- 改行・空行の統合処理 ---
+        if options['line_mode'] == "改行を全削除":
+            # すべての改行・空白を一度消去（テキストのリセット）
+            full_text = re.sub(r'[\n\r\s]+', '', full_text)
+        elif options['line_mode'] == "空行を削除":
+            # 連続する改行（空行）を1つの改行に集約
             full_text = re.sub(r'\n\s*\n+', '\n', full_text)
-
-        # 文字数折り返し
+        
+        # --- 文字数折り返し処理 ---
+        # 「全削除」後の再整形、または既存行の折り返し
         if options['wrap_width'] > 0:
-            lines = full_text.splitlines()
-            full_text = "\n".join([textwrap.fill(line, width=options['wrap_width']) for line in lines])
+            if options['line_mode'] == "改行を全削除":
+                # ひと塊になったテキストを指定幅でパッキング
+                full_text = textwrap.fill(full_text, width=options['wrap_width'])
+            else:
+                # 各行の長さを指定幅以内に収める
+                lines = full_text.splitlines()
+                full_text = "\n".join([textwrap.fill(line, width=options['wrap_width']) for line in lines])
 
         # 画像の抽出
         if options['save_images']:
@@ -58,11 +61,10 @@ def convert_epub_logic(uploaded_file, options):
 # --- 3. UIレイアウト & スタイル改善 ---
 st.markdown("""
     <style>
-    /* スマホ向けフォント・余白調整 */
     html { font-size: 14px; }
     h1 { font-size: 1.8rem !important; margin-bottom: 0.5rem; }
     
-    /* ボタンの押しやすさ向上 */
+    /* ボタンデザイン */
     .stButton > button {
         height: 3.5rem;
         border-radius: 12px;
@@ -72,28 +74,26 @@ st.markdown("""
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
     
-    /* フォーム周りの整理 */
+    /* UIパーツの隙間調整 */
     .stFileUploader { margin-bottom: -10px; }
-    .stCheckbox, .stToggle { margin-bottom: 8px; }
-    [data-testid="stExpander"] { border-radius: 10px; }
+    [data-testid="stExpander"] { border-radius: 10px; border: 1px solid #ddd; }
     
-    /* 区切り線 */
-    hr { margin: 1rem 0 !important; }
+    /* スライダーやラジオボタンのラベルを見やすく */
+    div[data-testid="stMarkdownContainer"] > p { font-size: 1rem; }
     </style>
     """, unsafe_allow_html=True)
 
 st.title("📚 EPUBをTXTにするやつ")
-st.write("スマホでも簡単にTXTへ変換・保存できます。")
+st.write("スマホでEPUBをきれいにTXT化。")
 
 # 1. ファイルアップロード
 uploaded_files = st.file_uploader(
     "EPUBファイルを選択", 
     type="epub", 
-    accept_multiple_files=True,
-    help="10個まで。複数選択や画像ありの場合はZIPで出力します。"
+    accept_multiple_files=True
 )
 
-# 2. 変換ボタン (ファイルがある時だけ表示)
+# 2. 変換ボタン
 run_pressed = False
 if uploaded_files:
     run_pressed = st.button("変換を実行する", type="primary", use_container_width=True)
@@ -101,34 +101,34 @@ if uploaded_files:
 # 結果表示用コンテナ
 result_container = st.container()
 
-# 3. オプション設定 (折りたたみ)
+# 3. オプション設定
 st.markdown("---")
 with st.expander("⚙️ オプション設定", expanded=True):
     col1, col2 = st.columns(2)
     
     with col1:
         var_ruby = st.checkbox("ルビを削除する", value=True)
-        var_images = st.checkbox("画像を抽出する(zip出力)", value=False)
-        var_newline = st.checkbox("文中の改行を削除")
+        var_images = st.checkbox("画像を抽出する", value=False)
         
     with col2:
-        # Indexを2(完全削除)に修正
-        var_blank_mode = st.radio(
-            "空行(連続改行)の扱い",
-            ["そのまま", "1行に統合", "完全削除"],
-            index=2
+        var_line_mode = st.radio(
+            "改行・空行の扱い",
+            ["そのまま", "空行を削除", "改行を全削除"],
+            index=1,
+            help="「全削除」した後に下の文字数指定を使うと、好きな幅で再整列できます。"
         )
     
     st.divider()
 
+    # 折り返し設定（全削除モードでも有効化）
     use_wrap = st.toggle("指定文字数で改行を入れる", value=False)
-    var_width = st.slider("1行の文字数", 1, 100, 30, disabled=not use_wrap)
+    var_width = st.slider("1行の文字数", 1, 100, 35, disabled=not use_wrap)
+    
     if not use_wrap:
         var_width = 0
 
 # --- 4. 実行処理 ---
 if run_pressed and uploaded_files:
-    
     is_single_txt = len(uploaded_files) == 1 and not var_images
     zip_buffer = io.BytesIO()
     single_txt_data = ""
@@ -140,13 +140,9 @@ if run_pressed and uploaded_files:
             
             with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
                 for i, file in enumerate(uploaded_files):
-                    # ロジック用マッピング
-                    logic_blank_mode = "完全に詰める" if var_blank_mode == "完全削除" else var_blank_mode
-                    
                     options = {
                         'remove_ruby': var_ruby,
-                        'remove_newlines': var_newline,
-                        'blank_mode': logic_blank_mode,
+                        'line_mode': var_line_mode,
                         'save_images': var_images,
                         'wrap_width': var_width
                     }
@@ -154,25 +150,25 @@ if run_pressed and uploaded_files:
                     txt, imgs = convert_epub_logic(file, options)
                     
                     if txt:
-                        base_name = file.name.replace(".epub", "").replace(".EPUB", "")
+                        # 拡張子を除去
+                        base_name = re.sub(r'\.epub$', '', file.name, flags=re.IGNORECASE)
                         
                         if is_single_txt:
                             single_txt_data = txt
                             single_filename = f"{base_name}.txt"
                         
                         zip_file.writestr(f"{base_name}.txt", txt)
-                        
                         if imgs:
                             for img_name, img_data in imgs:
                                 zip_file.writestr(f"{base_name}_images/{img_name}", img_data)
                     
                     progress_bar.progress((i + 1) / len(uploaded_files))
             
-            st.success("変換が完了しました！")
+            st.success("完了しました！")
             
             if is_single_txt:
                 st.download_button(
-                    label="📄 TXTをダウンロード",
+                    label="📄 TXTを保存",
                     data=single_txt_data,
                     file_name=single_filename,
                     mime="text/plain",
@@ -180,7 +176,7 @@ if run_pressed and uploaded_files:
                 )
             else:
                 st.download_button(
-                    label="📦 ZIPをダウンロード",
+                    label="📦 まとめて保存 (ZIP)",
                     data=zip_buffer.getvalue(),
                     file_name="converted_files.zip",
                     mime="application/zip",
@@ -193,9 +189,6 @@ st.markdown(
     """
     <div style="text-align: center; font-size: 11px; color: #888888; margin-top: 50px;">
         <p>Created by <strong>ごんざれす</strong> | <a href="https://x.com/jyukaiin" target="_blank" style="color: #1DA1F2; text-decoration: none;">𝕏 @jyukaiin</a></p>
-        <p style="font-size: 9px; opacity: 0.7;">
-            ※ファイルはサーバーに保存されません。本ツール利用による損害について責任は負いかねます。
-        </p>
     </div>
     """,
     unsafe_allow_html=True
