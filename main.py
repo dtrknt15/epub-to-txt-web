@@ -123,7 +123,7 @@ with st.expander("⚙️ オプション設定", expanded=True):
 
     # 折り返し設定（全削除モードでも有効化）
     use_wrap = st.toggle("指定文字数で改行を入れる", value=False)
-    var_width = st.slider("1行の文字数", 1, 100, 35, disabled=not use_wrap)
+    var_width = st.slider("1行の文字数", 1, 100, 15, disabled=not use_wrap)
     
     if not use_wrap:
         var_width = 0
@@ -194,6 +194,7 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
 
 
 
