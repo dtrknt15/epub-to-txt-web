@@ -8,7 +8,7 @@ import io
 import zipfile
 
 # --- 1. ページ設定 ---
-st.set_page_config(page_title="EPUB to TXT Converter Online", page_icon="📚")
+st.set_page_config(page_title="EPUBをTXTにするやつONLINE", page_icon="📚")
 
 # --- 2. 変換ロジック (変更なし) ---
 def convert_epub_logic(uploaded_file, options):
@@ -50,15 +50,24 @@ def convert_epub_logic(uploaded_file, options):
         st.error(f"エラーが発生しました: {e}")
         return None, None
 
-# --- 3. UIレイアウト (ここをスマホ向けに変更) ---
-st.title("📚 EPUB to TXT Converter")
-st.write("スマホでも簡単変換。設定を確認してファイルをアップロードしてください。")
+# --- 3. UIレイアウト (ここを大幅に変更) ---
+st.title("📚 EPUBをTXTにするやつONLINE")
+st.write("スマホでも簡単に変換できるやつ。")
 
-# ▼▼▼ 変更点: サイドバーをやめてメイン画面に配置 ▼▼▼
-# expanded=True にすることで、ページを開いた瞬間に中身が見える状態にします
-with st.expander("⚙️ 変換設定（タップで閉じる）", expanded=True):
+# 1. ファイルアップロードを一番上に配置
+uploaded_files = st.file_uploader("EPUBファイルを選択（複数可）", type="epub", accept_multiple_files=True)
+
+# 2. 変換ボタンをその下に配置
+# ここでボタンが押されたかどうかの状態を変数(run_pressed)に保存します
+run_pressed = False
+if uploaded_files:
+    run_pressed = st.button("変換を実行する", type="primary", use_container_width=True)
+
+# 3. 設定エリアをさらに下に配置
+st.markdown("---") # 見やすくするための区切り線
+# 画面下部なので、デフォルトは閉じておき(expanded=False)、必要な人だけ開く仕様にしました
+with st.expander("⚙️ オプション設定（変更する場合はここをタップ）", expanded=False):
     
-    # 横並びにして省スペース化（スマホでは自動で縦になります）
     col1, col2 = st.columns(2)
     
     with col1:
@@ -68,10 +77,10 @@ with st.expander("⚙️ 変換設定（タップで閉じる）", expanded=True
         var_images = st.checkbox("画像を抽出する", value=False)
 
     with col2:
-        st.caption("レイアウト設定")
+        st.caption("空行設定")
         var_blank_mode = st.radio(
             "空行の扱い",
-            ["そのまま", "1行に統合", "詰める"], # スマホ用に文言を短縮
+            ["そのまま", "1行に統合", "詰める"],
             index=0
         )
     
@@ -83,59 +92,52 @@ with st.expander("⚙️ 変換設定（タップで閉じる）", expanded=True
         var_width = st.slider("文字数", min_value=10, max_value=100, value=40)
     else:
         var_width = 0
-# ▲▲▲ 変更ここまで ▲▲▲
 
+# --- 4. 実行処理ブロック (配置はUIの後だが、ボタン判定で動く) ---
+if run_pressed and uploaded_files:
+    # ここに来た時点で「設定エリア」の変数は読み込まれているので安全に使用できます
+    
+    zip_buffer = io.BytesIO()
+    
+    with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
+        progress_bar = st.progress(0)
+        
+        for i, file in enumerate(uploaded_files):
+            options = {
+                'remove_ruby': var_ruby,
+                'remove_newlines': var_newline,
+                'blank_mode': var_blank_mode,
+                'save_images': var_images,
+                'wrap_width': var_width
+            }
+            
+            if options['blank_mode'] == "詰める":
+                options['blank_mode'] = "完全に詰める"
+            
+            txt, imgs = convert_epub_logic(file, options)
+            
+            if txt:
+                base_name = file.name.replace(".epub", "")
+                zip_file.writestr(f"{base_name}.txt", txt)
+                
+                if imgs:
+                    for img_name, img_data in imgs:
+                        zip_file.writestr(f"{base_name}_images/{img_name}", img_data)
+            
+            progress_bar.progress((i + 1) / len(uploaded_files))
+        
+    st.success("変換完了！下のボタンから保存してください。")
+    
+    st.download_button(
+        label="📦 まとめてダウンロード (ZIP)",
+        data=zip_buffer.getvalue(),
+        file_name="converted_files.zip",
+        mime="application/zip",
+        use_container_width=True
+    )
 
-# メインエリア: ファイルアップロード
+# --- 5. フッター（署名・免責） ---
 st.markdown("---")
-uploaded_files = st.file_uploader("EPUBファイルを選択（複数可）", type="epub", accept_multiple_files=True)
-
-if uploaded_files:
-    if st.button("変換を実行する", type="primary", use_container_width=True):
-        
-        zip_buffer = io.BytesIO()
-        
-        with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
-            progress_bar = st.progress(0)
-            
-            for i, file in enumerate(uploaded_files):
-                options = {
-                    'remove_ruby': var_ruby,
-                    'remove_newlines': var_newline,
-                    'blank_mode': var_blank_mode, # ラジオボタンの文言を変えたので注意（ロジック側で吸収するか文言合わせる）
-                    'save_images': var_images,
-                    'wrap_width': var_width
-                }
-                
-                # ※ラジオボタンの文言を短くしたので、ロジックに渡す値を調整
-                # (ロジック側を変えずにここで吸収する場合)
-                if options['blank_mode'] == "詰める":
-                    options['blank_mode'] = "完全に詰める"
-                
-                txt, imgs = convert_epub_logic(file, options)
-                
-                if txt:
-                    base_name = file.name.replace(".epub", "")
-                    zip_file.writestr(f"{base_name}.txt", txt)
-                    
-                    if imgs:
-                        for img_name, img_data in imgs:
-                            zip_file.writestr(f"{base_name}_images/{img_name}", img_data)
-                
-                progress_bar.progress((i + 1) / len(uploaded_files))
-            
-        st.success("変換完了！下のボタンから保存してください。")
-        
-        st.download_button(
-            label="📦 まとめてダウンロード (ZIP)",
-            data=zip_buffer.getvalue(),
-            file_name="converted_files.zip",
-            mime="application/zip",
-            use_container_width=True
-        )
-        
-# --- 4. フッター（署名・免責） ---
-st.markdown("---") # 区切り線
 st.markdown(
     """
     <div style="text-align: center; font-size: 12px; color: #888888; line-height: 1.6;">
